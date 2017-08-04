@@ -483,6 +483,28 @@ func TestAccAWSLambdaFunction_VPC_withInvocation(t *testing.T) {
 	})
 }
 
+func TestAccAWSLambdaFunction_EmptyVpcConfig(t *testing.T) {
+	var conf lambda.GetFunctionOutput
+
+	rSt := acctest.RandString(5)
+	rName := fmt.Sprintf("tf_test_%s", rSt)
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:     func() { testAccPreCheck(t) },
+		Providers:    testAccProviders,
+		CheckDestroy: testAccCheckLambdaFunctionDestroy,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccAWSLambdaConfigWithEmptyVpcConfig(rName, rSt),
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckAwsLambdaFunctionExists("aws_lambda_function.test", rName, &conf),
+					resource.TestCheckResourceAttr("aws_lambda_function.test", "vpc_config.#", "0"),
+				),
+			},
+		},
+	})
+}
+
 func TestAccAWSLambdaFunction_s3(t *testing.T) {
 	var conf lambda.GetFunctionOutput
 	rSt := acctest.RandString(5)
@@ -1468,6 +1490,22 @@ resource "aws_security_group" "sg_for_lambda_2" {
 
 
 `, rName, rName)
+}
+
+func testAccAWSLambdaConfigWithEmptyVpcConfig(rName, rSt string) string {
+	return fmt.Sprintf(baseAccAWSLambdaConfig(rSt)+`
+resource "aws_lambda_function" "test" {
+    filename      = "test-fixtures/lambdatest.zip"
+    function_name = "%s"
+    role          = "${aws_iam_role.iam_for_lambda.arn}"
+    handler       = "exports.example"
+    runtime       = "nodejs4.3"
+
+    vpc_config {
+        subnet_ids         = []
+        security_group_ids = []
+    }
+}`, rName)
 }
 
 func testAccAWSLambdaConfigS3(rName, rSt string) string {
