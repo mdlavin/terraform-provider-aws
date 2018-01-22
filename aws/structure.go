@@ -1225,11 +1225,20 @@ func flattenLambdaEnvironment(lambdaEnv *lambda.EnvironmentResponse) []interface
 	return []interface{}{envs}
 }
 
-func flattenLambdaVpcConfigResponse(s *lambda.VpcConfigResponse) []map[string]interface{} {
-	settings := make(map[string]interface{}, 0)
+func buildEmptyVpcConfig() []map[string]interface{} {
+	settings := make(map[string]interface{}, 2)
 
+	subnet_ids := make([]interface{}, 0)
+	settings["subnet_ids"] = schema.NewSet(schema.HashString, subnet_ids)
+	security_group_ids := make([]interface{}, 0)
+	settings["security_group_ids"] = schema.NewSet(schema.HashString, security_group_ids)
+
+	return []map[string]interface{}{settings}
+}
+
+func flattenLambdaVpcConfigResponse(s *lambda.VpcConfigResponse) []map[string]interface{} {
 	if s == nil {
-		return nil
+		return buildEmptyVpcConfig()
 	}
 
 	var emptyVpc bool
@@ -1237,9 +1246,10 @@ func flattenLambdaVpcConfigResponse(s *lambda.VpcConfigResponse) []map[string]in
 		emptyVpc = true
 	}
 	if len(s.SubnetIds) == 0 && len(s.SecurityGroupIds) == 0 && emptyVpc {
-		return nil
+		return buildEmptyVpcConfig()
 	}
 
+	settings := make(map[string]interface{}, 0)
 	settings["subnet_ids"] = schema.NewSet(schema.HashString, flattenStringList(s.SubnetIds))
 	settings["security_group_ids"] = schema.NewSet(schema.HashString, flattenStringList(s.SecurityGroupIds))
 	if s.VpcId != nil {

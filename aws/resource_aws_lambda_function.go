@@ -153,24 +153,14 @@ func resourceAwsLambdaFunction() *schema.Resource {
 					},
 				},
 
-				// Suppress diffs if the VPC configuration is empty.
 				DiffSuppressFunc: func(k, old, new string, d *schema.ResourceData) bool {
-					if v, ok := d.GetOk("vpc_config"); ok {
-						configs := v.([]interface{})
-						config, ok := configs[0].(map[string]interface{})
-
-						if !ok {
-							return true
-						}
-
-						if config == nil {
-							return true
-						}
-
-						securityGroups := config["security_group_ids"].(*schema.Set)
-						subnets := config["subnet_ids"].(*schema.Set)
-
-						if securityGroups.Len() == 0 && subnets.Len() == 0 {
+					// If the vpc_config element is being removed then ignore diffs against
+					// a configuration with empty security_group_ids and subent_ids. Two empty
+					// lists is one way how AWS represents having no VPC connection.
+					if k == "vpc_config.#" && new == "0" {
+						securityGroupCount := d.Get("vpc_config.0.security_group_ids.#")
+						subnetIdCount := d.Get("vpc_config.0.subnet_ids.#")
+						if securityGroupCount == 0 && subnetIdCount == 0 {
 							return true
 						}
 					}
@@ -256,6 +246,31 @@ func updateComputedAttributesOnPublish(d *schema.ResourceDiff, meta interface{})
 	return nil
 }
 
+func isVpcConfigEmpty(configs []interface{}) bool {
+	if len(configs) == 0 {
+		return true
+	}
+
+	config, ok := configs[0].(map[string]interface{})
+
+	if !ok {
+		return true
+	}
+
+	if config == nil {
+		return true
+	}
+
+	securityGroups := config["security_group_ids"].(*schema.Set)
+	subnets := config["subnet_ids"].(*schema.Set)
+
+	if securityGroups.Len() == 0 && subnets.Len() == 0 {
+		return true
+	}
+
+	return false
+}
+
 // resourceAwsLambdaFunction maps to:
 // CreateFunction in the API / SDK
 func resourceAwsLambdaFunctionCreate(d *schema.ResourceData, meta interface{}) error {
@@ -331,13 +346,14 @@ func resourceAwsLambdaFunctionCreate(d *schema.ResourceData, meta interface{}) e
 
 	if v, ok := d.GetOk("vpc_config"); ok {
 		configs := v.([]interface{})
-		config, ok := configs[0].(map[string]interface{})
 
-		if !ok {
-			return errors.New("vpc_config is <nil>")
-		}
+		if !isVpcConfigEmpty(configs) {
+			config, ok := configs[0].(map[string]interface{})
 
-		if config != nil {
+			if !ok {
+				return errors.New("vpc_config is <nil>")
+			}
+
 			var subnetIds []*string
 			for _, id := range config["subnet_ids"].(*schema.Set).List() {
 				subnetIds = append(subnetIds, aws.String(id.(string)))
@@ -704,12 +720,13 @@ func resourceAwsLambdaFunctionUpdate(d *schema.ResourceData, meta interface{}) e
 	}
 	if d.HasChange("vpc_config") {
 		vpcConfigRaw := d.Get("vpc_config").([]interface{})
-		vpcConfig, ok := vpcConfigRaw[0].(map[string]interface{})
-		if !ok {
-			return errors.New("vpc_config is <nil>")
-		}
 
-		if vpcConfig != nil {
+		if !isVpcConfigEmpty(vpcConfigRaw) {
+			vpcConfig, ok := vpcConfigRaw[0].(map[string]interface{})
+			if !ok {
+				return errors.New("vpc_config is <nil>")
+			}
+
 			var subnetIds []*string
 			for _, id := range vpcConfig["subnet_ids"].(*schema.Set).List() {
 				subnetIds = append(subnetIds, aws.String(id.(string)))
@@ -723,6 +740,12 @@ func resourceAwsLambdaFunctionUpdate(d *schema.ResourceData, meta interface{}) e
 			configReq.VpcConfig = &lambda.VpcConfig{
 				SubnetIds:        subnetIds,
 				SecurityGroupIds: securityGroupIds,
+			}
+			configUpdate = true
+		} else {
+			configReq.VpcConfig = &lambda.VpcConfig{
+				SubnetIds:        []*string{},
+				SecurityGroupIds: []*string{},
 			}
 			configUpdate = true
 		}
