@@ -145,8 +145,8 @@ func resourceAwsLambdaFunction() *schema.Resource {
 					// a configuration with empty security_group_ids and subent_ids. Two empty
 					// lists is one way how AWS represents having no VPC connection.
 					if k == "vpc_config.#" && new == "0" {
-						securityGroupCount := d.Get("vpc_config.0.security_group_ids.#");
-						subnetIdCount := d.Get("vpc_config.0.subnet_ids.#");
+						securityGroupCount := d.Get("vpc_config.0.security_group_ids.#")
+						subnetIdCount := d.Get("vpc_config.0.subnet_ids.#")
 						if securityGroupCount == 0 && subnetIdCount == 0 {
 							return true
 						}

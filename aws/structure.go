@@ -1171,7 +1171,7 @@ func flattenLambdaEnvironment(lambdaEnv *lambda.EnvironmentResponse) []interface
 	return []interface{}{envs}
 }
 
-func buildEmptyVpcConfig () []map[string]interface{}  {
+func buildEmptyVpcConfig() []map[string]interface{} {
 	settings := make(map[string]interface{}, 2)
 
 	subnet_ids := make([]interface{}, 0)
@@ -1184,7 +1184,7 @@ func buildEmptyVpcConfig () []map[string]interface{}  {
 
 func flattenLambdaVpcConfigResponse(s *lambda.VpcConfigResponse) []map[string]interface{} {
 	if s == nil {
-		return buildEmptyVpcConfig();
+		return buildEmptyVpcConfig()
 	}
 
 	var emptyVpc bool
@@ -1192,7 +1192,7 @@ func flattenLambdaVpcConfigResponse(s *lambda.VpcConfigResponse) []map[string]in
 		emptyVpc = true
 	}
 	if len(s.SubnetIds) == 0 && len(s.SecurityGroupIds) == 0 && emptyVpc {
-		return buildEmptyVpcConfig();
+		return buildEmptyVpcConfig()
 	}
 
 	settings := make(map[string]interface{}, 0)

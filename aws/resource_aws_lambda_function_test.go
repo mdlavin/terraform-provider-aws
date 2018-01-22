@@ -1200,7 +1200,7 @@ func testAccCheckAwsLambdaEmptyVpc(function *lambda.GetFunctionOutput) resource.
 		securityGroups := c.VpcConfig.SecurityGroupIds
 		subnetIds := c.VpcConfig.SubnetIds
 		if len(subnetIds) == 0 && len(securityGroups) == 0 {
-		return nil
+			return nil
 		}
 
 		return fmt.Errorf("Expected VpcConfig to be empty, got %s", *c.VpcConfig)
