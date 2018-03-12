@@ -586,6 +586,87 @@ func TestAccAWSLambdaFunction_VPC_withInvocation(t *testing.T) {
 	})
 }
 
+func TestAccAWSLambdaFunction_VpcToEmptyVpcConfig(t *testing.T) {
+	var conf lambda.GetFunctionOutput
+
+	rString := acctest.RandString(8)
+	funcName := fmt.Sprintf("tf_acc_lambda_func_to_empty_vpc_%s", rString)
+	policyName := fmt.Sprintf("tf_acc_policy_lambda_func_to_empty_vpc_%s", rString)
+	roleName := fmt.Sprintf("tf_acc_role_lambda_func_to_empty_vpc_%s", rString)
+	sgName := fmt.Sprintf("tf_acc_sg_lambda_func_to_empty_vpc_%s", rString)
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:     func() { testAccPreCheck(t) },
+		Providers:    testAccProviders,
+		CheckDestroy: testAccCheckLambdaFunctionDestroy,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccAWSLambdaConfigWithVPC(funcName, policyName, roleName, sgName),
+			},
+			{
+				Config: testAccAWSLambdaConfigWithEmptyVpcConfig(funcName, policyName, roleName, sgName),
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckAwsLambdaFunctionExists("aws_lambda_function.lambda_function_test", funcName, &conf),
+					testAccCheckAwsLambdaEmptyVpc(&conf),
+				),
+			},
+		},
+	})
+}
+
+func TestAccAWSLambdaFunction_VpcToRemovedVpcConfig(t *testing.T) {
+	var conf lambda.GetFunctionOutput
+
+	rString := acctest.RandString(8)
+	funcName := fmt.Sprintf("tf_acc_lambda_func_to_empty_vpc_%s", rString)
+	policyName := fmt.Sprintf("tf_acc_policy_lambda_func_to_empty_vpc_%s", rString)
+	roleName := fmt.Sprintf("tf_acc_role_lambda_func_to_empty_vpc_%s", rString)
+	sgName := fmt.Sprintf("tf_acc_sg_lambda_func_to_empty_vpc_%s", rString)
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:     func() { testAccPreCheck(t) },
+		Providers:    testAccProviders,
+		CheckDestroy: testAccCheckLambdaFunctionDestroy,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccAWSLambdaConfigWithVPC(funcName, policyName, roleName, sgName),
+			},
+			{
+				Config: testAccAWSLambdaConfigBasic(funcName, policyName, roleName, sgName),
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckAwsLambdaFunctionExists("aws_lambda_function.lambda_function_test", funcName, &conf),
+					testAccCheckAwsLambdaEmptyVpc(&conf),
+				),
+			},
+		},
+	})
+}
+
+func TestAccAWSLambdaFunction_EmptyVpcConfig(t *testing.T) {
+	var conf lambda.GetFunctionOutput
+
+	rString := acctest.RandString(8)
+	funcName := fmt.Sprintf("tf_acc_lambda_func_empty_vpc_%s", rString)
+	policyName := fmt.Sprintf("tf_acc_policy_lambda_func_empty_vpc_%s", rString)
+	roleName := fmt.Sprintf("tf_acc_role_lambda_func_empty_vpc_%s", rString)
+	sgName := fmt.Sprintf("tf_acc_sg_lambda_func_empty_vpc_%s", rString)
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:     func() { testAccPreCheck(t) },
+		Providers:    testAccProviders,
+		CheckDestroy: testAccCheckLambdaFunctionDestroy,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccAWSLambdaConfigWithEmptyVpcConfig(funcName, policyName, roleName, sgName),
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckAwsLambdaFunctionExists("aws_lambda_function.lambda_function_test", funcName, &conf),
+					testAccCheckAwsLambdaEmptyVpc(&conf),
+				),
+			},
+		},
+	})
+}
+
 func TestAccAWSLambdaFunction_s3(t *testing.T) {
 	var conf lambda.GetFunctionOutput
 
@@ -1133,6 +1214,23 @@ func testAccCheckAttributeIsDateAfter(s *terraform.State, name string, key strin
 	return nil
 }
 
+func testAccCheckAwsLambdaEmptyVpc(function *lambda.GetFunctionOutput) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		c := function.Configuration
+		if c.VpcConfig == nil {
+			return nil
+		}
+
+		securityGroups := c.VpcConfig.SecurityGroupIds
+		subnetIds := c.VpcConfig.SubnetIds
+		if len(subnetIds) == 0 && len(securityGroups) == 0 {
+			return nil
+		}
+
+		return fmt.Errorf("Expected VpcConfig to be empty, got %s", *c.VpcConfig)
+	}
+}
+
 func testAccCreateZipFromFiles(files map[string]string, zipFile *os.File) error {
 	zipFile.Truncate(0)
 	zipFile.Seek(0, 0)
@@ -1666,6 +1764,22 @@ resource "aws_security_group" "sg_for_lambda_2" {
 
 
 `, funcName, sgName2)
+}
+
+func testAccAWSLambdaConfigWithEmptyVpcConfig(functionName, policyName, roleName, sgName string) string {
+	return fmt.Sprintf(baseAccAWSLambdaConfig(policyName, roleName, sgName)+`
+resource "aws_lambda_function" "lambda_function_test" {
+    filename      = "test-fixtures/lambdatest.zip"
+    function_name = "%s"
+    role          = "${aws_iam_role.iam_for_lambda.arn}"
+    handler       = "exports.example"
+    runtime       = "nodejs4.3"
+
+    vpc_config {
+        subnet_ids         = []
+        security_group_ids = []
+    }
+}`, functionName)
 }
 
 func testAccAWSLambdaConfigS3(bucketName, roleName, funcName string) string {
